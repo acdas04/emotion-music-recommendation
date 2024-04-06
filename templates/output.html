@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Recommended Songs</title>
+</head>
+
+<body>
+    <h1>Recommended Songs:</h1>
+    <ul>
+        {% for song in recommended_songs %}
+        <li>{{ song['name'] }} - {{ song['artists'] }}</li>
+        {% endfor %}
+    </ul>
+</body>
+
+</html>
