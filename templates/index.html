@@ -8,31 +8,35 @@
 
 <body class="bg-gray-100 flex flex-col justify-center items-center h-screen space-y-6">
     <h1 class="text-2xl font-semibold text-gray-800 mb-4">Emotion Detection and Song Recommendation</h1>
-    <div class="bg-white p-6 rounded-lg shadow-md space-y-4">
+    <div class="bg-white p-6 rounded-lg shadow-md space-y-4 w-96">
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
         <form action="/" method="post" enctype="multipart/form-data" class="space-y-4">
             <div>
                 <label for="file" class="block text-sm font-medium text-gray-700">Select an image:</label>
-                <input type="file" id="file" name="file" accept="image/*" class="mt-1 w-full border rounded-md p-2">
+                <input type="file" id="file" name="file" accept="image/*"
+                    class="mt-1 w-full border rounded-md p-2 file:mr-4 file:rounded-md file:border-0 file:bg-blue-500 file:text-white hover:file:bg-blue-600">
             </div>
             <div class="w-full">
-                <input type="submit" value="Detect Emotion and Recommend Songs" class="cursor-pointer w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md">
+                <input type="submit" value="Detect Emotion and Recommend Songs"
+                    class="cursor-pointer w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md">
             </div>
         </form>
 
         {% if emotion %}
-        <h2 class="text-xl font-semibold text-gray-800 mt-4">Predicted Emotion: {{ emotion }}</h2>
-        {% endif %} {% if recommended_songs %}
-        <h2 class="text-xl font-semibold text-gray-800 mt-4">Recommended Songs:</h2>
-        <ul class="list-disc list-inside space-y-2">
-            {% for song in recommended_songs %}
-            <li class="text-gray-600">{{ song.Track }} by {{ song.Artist }}and link is:<a href="{{ song.Url_youtube }}" target="_blank">{{ song.Url_youtube }}</li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-gray-500">No recommended songs found for the detected emotion.</p>
+        <div class="mt-4 text-center">
+            <h2 class="text-xl font-semibold text-gray-800">Detected Emotion: {{ emotion }}</h2>
+            <a href="/refresh_songs/{{ emotion }}"
+                class="mt-2 inline-block bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-md">
+                View Recommended Songs
+            </a>
+        </div>
         {% endif %}
     </div>
 </body>
-
 
 </html>

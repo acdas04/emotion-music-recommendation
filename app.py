@@ -1,32 +1,67 @@
 from flask import Flask, render_template, request
+import os
 import cv2
 import numpy as np
 import tensorflow as tf
 import pandas as pd
-#cse 2100
-#roll:2003038,2003005
+from tensorflow.keras.layers import Conv2D, MaxPool2D, BatchNormalization, Dropout, Flatten, Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import regularizers
+
+# cse 2100
+# roll: 2003038, 2003005
 # create a web app
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')  # Set the upload folder path
+
+# Ensure the upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Load the emotion detection model
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(48, 48, 1)),
-    tf.keras.layers.MaxPooling2D((2, 2)),
-    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-    tf.keras.layers.MaxPooling2D((2, 2)),
-    tf.keras.layers.Flatten(),
-    # Rectified Linear Unit
-    tf.keras.layers.Dense(128, activation='relu'),
-    tf.keras.layers.Dropout(0.5),
-    tf.keras.layers.Dense(7, activation='softmax')
-])
+model = tf.keras.models.Sequential()
+model.add(Conv2D(32, kernel_size=(3, 3), padding='same', activation='relu', input_shape=(48, 48, 1)))
+model.add(Conv2D(64, (3, 3), padding='same', activation='relu'))
+model.add(BatchNormalization())
+model.add(MaxPool2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
 
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-# load emotion model weights.h5 modelfile
-model.load_weights('emotion_model_weights.h5')
+model.add(Conv2D(128, (5, 5), padding='same', activation='relu'))
+model.add(BatchNormalization())
+model.add(MaxPool2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
 
-# song
-dataset = 'Spotify_Youtube.csv'
+model.add(Conv2D(512, (3, 3), padding='same', activation='relu', kernel_regularizer=regularizers.l2(0.01)))
+model.add(BatchNormalization())
+model.add(MaxPool2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+
+model.add(Conv2D(512, (3, 3), padding='same', activation='relu', kernel_regularizer=regularizers.l2(0.01)))
+model.add(BatchNormalization())
+model.add(MaxPool2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+
+model.add(Flatten())
+model.add(Dense(256, activation='relu'))
+model.add(BatchNormalization())
+model.add(Dropout(0.25))
+
+model.add(Dense(512, activation='relu'))
+model.add(BatchNormalization())
+model.add(Dropout(0.25))
+
+model.add(Dense(7, activation='softmax'))
+
+model.compile(
+    optimizer=Adam(learning_rate=0.0001),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+# Load emotion model weights
+model.load_weights('/Users/abirchandradas/Desktop/python/music recommendation based on facial expression/model1.h5')
+
+# Load song dataset
+dataset = '/Users/abirchandradas/Desktop/python/music recommendation based on facial expression/Spotify_Youtube.csv'
 df = pd.read_csv(dataset)
 emotion_categories = {
     'happy': df.loc[df['Valence'] > 0.7],
@@ -34,51 +69,16 @@ emotion_categories = {
     'energetic': df.loc[(df['Valence'] >= 0.3) & (df['Valence'] <= 0.7)]
 }
 
-# Function to preprocess the webcam video stream
-# def preprocess_video():
-#     cap = cv2.VideoCapture(0)
-#     while True:
-#         ret, frame = cap.read()
-#         if not ret:
-#             break
-
-#         # Detect emotion from the frame
-#         emotion = detect_emotion(frame)
-
-#         # Recommend songs based on detected emotion
-#         recommended_songs = recommend_songs(emotion)
-
-#         # Display the emotion and recommended songs on the frame
-#         font = cv2.FONT_HERSHEY_SIMPLEX
-#         cv2.putText(frame, f"Emotion: {emotion}", (10, 30), font, 1, (0, 255, 0), 2)
-#         cv2.putText(frame, "Recommended Songs:", (10, 60), font, 1, (0, 255, 0), 2)
-
-#         for i, (song, artist) in enumerate(recommended_songs.iterrows(), start=1):
-#             cv2.putText(frame, f"{i}. {song} - {artist}", (10, 60 + i * 30), font, 0.7, (0, 255, 0), 2)
-
-#         ret, buffer = cv2.imencode('.jpg', frame)
-#         frame = buffer.tobytes()
-
-#         yield (b'--frame\r\n'
-#                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-#     cap.release()
-
 # Function to preprocess the input image for emotion detection
 def preprocess_image(image):
-    # Resize the Image
     image = cv2.resize(image, (48, 48))
-    # This code checks if the image has more than one channel
     if len(image.shape) > 2 and image.shape[2] > 1:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # pixel values are normalized to the range [0, 1]
     image = image / 255.0
-    #  is used to add an extra dimension 
     image = np.expand_dims(image, axis=-1)
     return image
 
-
-#  image
+# Function to detect emotion from the image
 def detect_emotion(image):
     preprocessed_image = preprocess_image(image)
     input_image = np.expand_dims(preprocessed_image, axis=0)
@@ -86,7 +86,6 @@ def detect_emotion(image):
     emotion_label = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
     predicted_label = emotion_label[np.argmax(predictions)]
     
-    # Map detected emotions to categories
     if predicted_label in ['Happy', 'Surprise']:
         return 'happy'
     elif predicted_label in ['Sad', 'Disgust']:
@@ -102,6 +101,7 @@ def recommend_songs(emotion, num_songs=5):
     else:
         return pd.DataFrame()  # Return an empty DataFrame if the emotion category is invalid
 
+# Main route for file upload and emotion detection
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST" and "file" in request.files:
@@ -109,21 +109,38 @@ def index():
         if file.filename == "":
             return render_template("index.html", error="No file selected.")
         
-        # Read the image file
-        image = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_UNCHANGED)
+        # Save the uploaded file
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(filepath)
+        
+        # Read the image
+        image = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)
         if image is not None:
-            # Perform emotion detection on the image
             detected_emotion = detect_emotion(image)
             recommended_songs = recommend_songs(detected_emotion)
             if not recommended_songs.empty:
-                # Convert recommended songs DataFrame to a list of dictionaries
                 recommended_songs = recommended_songs.to_dict(orient="records")
+            
+            # Remove the uploaded file after processing
+            os.remove(filepath)
+            
             return render_template("index.html", emotion=detected_emotion, recommended_songs=recommended_songs)
         else:
+            # Remove the uploaded file in case of error
+            os.remove(filepath)
             return render_template("index.html", error="Failed to read the image file.")
     
     return render_template("index.html", error=None)
 
+# Route to refresh songs for a specific emotion
+@app.route("/refresh_songs/<emotion>")
+def refresh_songs(emotion):
+    recommended_songs = recommend_songs(emotion)
+    if not recommended_songs.empty:
+        recommended_songs = recommended_songs.to_dict(orient="records")
+    else :
+        recommended_songs=recommend_songs('Happy').to_dict(orient="records")
+    return render_template("output.html", recommended_songs=recommended_songs, emotion=emotion)
 
 if __name__ == '__main__':
     app.run(debug=True)
